@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" name="GitHubExtractor">
+   <implementation class="fr.labri.harmony.extractor.github.GitHubExtractor"/>
+   <service>
+      <provide interface="fr.labri.harmony.core.source.SourceExtractor"/>
+   </service>
+</scr:component>
