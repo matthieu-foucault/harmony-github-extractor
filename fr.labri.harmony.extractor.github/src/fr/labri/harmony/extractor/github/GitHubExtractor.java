@@ -29,7 +29,7 @@ import fr.labri.harmony.core.source.WorkspaceException;
 
 public class GitHubExtractor extends AbstractSourceExtractor<DefaultWorkspace> {
 
-	public final static String GITHUB_OAUTH_TOKEN = "oauth-token";
+	public final static int REMAINING_REQUEST_THRESHOLD = 50; // Threshold under which we use a different oauth token  
 
 	public GitHubExtractor() {
 		super();
@@ -41,12 +41,15 @@ public class GitHubExtractor extends AbstractSourceExtractor<DefaultWorkspace> {
 
 	private GitHubClient ghClient;
 	private Repository repository;
+	private OAuthTokensManager tokensManager;
 
 	@Override
 	public void initializeWorkspace() {
 		ghClient = new GitHubClient();
-		ghClient.setOAuth2Token(config.getOptions().get(GITHUB_OAUTH_TOKEN));
+		tokensManager = new OAuthTokensManager(config);
 
+		checkRemainingRequests();
+		
 		String[] splittedUrl = getUrl().split("/");
 		String owner = splittedUrl[splittedUrl.length - 2];
 		String repoName = splittedUrl[splittedUrl.length - 1];
@@ -64,8 +67,8 @@ public class GitHubExtractor extends AbstractSourceExtractor<DefaultWorkspace> {
 	@Override
 	public void extractEvents() {
 		
-		// TODO : we have to regularly check the remaining request quota, and wait for the quota to increase if necessary.
-
+		checkRemainingRequests();
+		
 		CommitService commitService = new CommitService(ghClient);
 		try {
 			List<RepositoryCommit> commits = commitService.getCommits(repository);
@@ -109,6 +112,7 @@ public class GitHubExtractor extends AbstractSourceExtractor<DefaultWorkspace> {
 
 	@Override
 	public void extractActions(Event event) {
+		checkRemainingRequests();
 		CommitService commitService = new CommitService(ghClient);
 		try {
 			for (Event parentEvent : event.getParents()) {
@@ -149,9 +153,11 @@ public class GitHubExtractor extends AbstractSourceExtractor<DefaultWorkspace> {
 		} catch (IOException e) {
 			throw new SourceExtractorException(e);
 		}
-		
-		HarmonyLogger.info("Extraction of Actions finished");
-		HarmonyLogger.info("GitHub API quota : " + ghClient.getRemainingRequests());
-
+	}
+	
+	private void checkRemainingRequests() {
+		if (ghClient.getRemainingRequests() < REMAINING_REQUEST_THRESHOLD) {
+			ghClient.setOAuth2Token(tokensManager.nextToken());
+		}
 	}
 }
